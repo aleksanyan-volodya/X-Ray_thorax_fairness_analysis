@@ -3,6 +3,9 @@ projet-env/
 venv/
 .env/
 
+# ignore logs
+expe_log/
+
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
