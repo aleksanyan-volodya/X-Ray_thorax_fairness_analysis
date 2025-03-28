@@ -1,0 +1,9 @@
+Image Index,Finding Labels,Follow-up #,Patient ID,Patient Age,Patient Gender,View Position,OriginalImage[Width,Height],OriginalImagePixelSpacing[x,y],WEIGHTS
+00000022_000.png,No Finding,0,22,48,M,PA,2048,2500,0.171,0.171,1
+00000033_000.png,Atelectasis|Cardiomegaly|Fibrosis,0,33,72,F,PA,2992,2745,0.143,0.143,1
+00000091_000.png,No Finding,0,91,69,M,PA,2834,2849,0.143,0.143,1
+00000091_001.png,Nodule,1,91,70,M,AP,2500,2048,0.168,0.168,1
+00000213_000.png,Infiltration,4,213,39,M,PA,2992,2991,0.143,0.143,1
+00000231_000.png,Infiltration,0,231,56,F,AP,3056,2544,0.139,0.139,1
+00000831_000.png,Consolidation|Infiltration|Nodule,6,831,25,M,AP,2500,2048,0.168,0.168,1
+00003894_000.png,Mass,8,3894,81,M,PA,2500,2048,0.168,0.168,1

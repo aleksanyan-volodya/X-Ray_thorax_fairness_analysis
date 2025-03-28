@@ -13,7 +13,7 @@ import io
 import pandas as pd
 from time import time
 import matplotlib.pyplot as plt
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import numpy as np
 
 
@@ -36,16 +36,6 @@ def change_brightness(image: Image, factor: float) -> Image:
     enhancer = ImageEnhance.Brightness(image)
     return enhancer.enhance(factor)
 
-def change_saturation(image: Image, factor: float) -> Image:
-    """
-    Change the saturation of an image
-    :param image: PIL image
-    :param factor: float (0 = greyscale, 1 = original)
-    :return: PIL image
-    """
-    enhancer = ImageEnhance.Color(image)
-    return enhancer.enhance(factor)
-
 def add_noise(image: Image, factor: float) -> Image:
     """
     Add noise to an image
@@ -55,9 +45,10 @@ def add_noise(image: Image, factor: float) -> Image:
     """
     np_image = np.array(image)
     noise = np.random.normal(0, factor, np_image.shape)
-    np_image = np_image + noise
-    np_image = np.clip(np_image, 0, 255)
-    return Image.fromarray(np_image)
+    noisy_image = np_image + noise
+    noisy_image_clipped = np.clip(noisy_image, 0, 255)
+    return Image.fromarray(noisy_image_clipped.astype(np.uint8))
+
 
 def add_blur(image: Image, factor: float) -> Image:
     """
@@ -68,20 +59,18 @@ def add_blur(image: Image, factor: float) -> Image:
     """
     return image.filter(ImageFilter.GaussianBlur(factor))
 
-def transform_image(image: Image, rotation: int, brightness: float, saturation: float, noise: float, blur: float) -> Image:
+def transform_image(image: Image, rotation: int, brightness: float, noise: float, blur: float) -> Image:
     """
     Transform an image by applying rotation, brightness, saturation, noise and blur
     :param image: PIL image
     :param rotation: int
     :param brightness: float
-    :param saturation: float
     :param noise: float
     :param blur: float
     :return: PIL image
     """
     image = rotate_image(image, rotation)
     image = change_brightness(image, brightness)
-    image = change_saturation(image, saturation)
     image = add_noise(image, noise)
     image = add_blur(image, blur)
     return image
@@ -89,18 +78,17 @@ def transform_image(image: Image, rotation: int, brightness: float, saturation: 
 # add the transformed image to the dataset
 # add in csv the image with same metadata but with the new path
 
-def add_transformed_image(image_path: str, transformed_image_path: str, rotation: int, brightness: float, saturation: float, noise: float, blur: float) -> None:
+def add_transformed_image(image_path: str, transformed_image_path: str, rotation: int, brightness: float, noise: float, blur: float) -> None:
     """
     Add a transformed image to the dataset
     :param image_path: str
     :param transformed_image_path: str
     :param rotation: int
     :param brightness: float
-    :param saturation: float
     :param noise: float
     :param blur: float
     :return: None
     """
     image = Image.open(image_path)
-    transformed_image = transform_image(image, rotation, brightness, saturation, noise, blur)
+    transformed_image = transform_image(image, rotation, brightness, noise, blur)
     transformed_image.save(transformed_image_path)
