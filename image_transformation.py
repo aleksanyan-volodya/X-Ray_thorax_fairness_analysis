@@ -75,9 +75,6 @@ def transform_image(image: Image, rotation: int, brightness: float, noise: float
     image = add_blur(image, blur)
     return image
 
-# add the transformed image to the dataset
-# add in csv the image with same metadata but with the new path
-
 def add_transformed_image(image_path: str, transformed_image_path: str, rotation: int, brightness: float, noise: float, blur: float) -> None:
     """
     Add a transformed image to the dataset
