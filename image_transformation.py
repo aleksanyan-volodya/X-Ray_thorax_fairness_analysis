@@ -114,11 +114,15 @@ def add_transformed_image_to_csv(from_csv_path: str, image_index: str, transform
     df_from = pd.read_csv(from_csv_path)
     image_info = df_from[df_from['Image Index'] == image_index].copy()
     image_info['Image Index'] = transformed_image_index
-
+    
     # add the new image to the end of the csv
-    df_to = pd.read_csv(to_csv_path) if to_csv_path else df_from
+    df_to = pd.read_csv(to_csv_path) if to_csv_path != None else df_from
     df_to = pd.concat([df_to, image_info], ignore_index=True) 
-    df_to.to_csv(to_csv_path, index=False)
+    
+    if to_csv_path is not None:
+        df_to.to_csv(to_csv_path, index=False)
+    else:
+        df_to.to_csv(from_csv_path, index=False)
 
 def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = None, to_image_path: str = None, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> None:
     """
@@ -135,13 +139,12 @@ def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = N
     :param equalize: bool
     :return: None
     """
+    splited_list = from_image_path.split('/')
+    path, image_index = splited_list[:-1], splited_list[-1]
+    
     if to_image_path is None:
         params_string = f"r{rotation}_b{brightness}_n{noise}_bl{blur}_eq{int(equalize)}"
-
-        splited_list = from_image_path.split('/')
-        path, image_index = splited_list[:-1], splited_list[-1]
         path = '/'.join(path)
-        
         transformed_image_path = f"{path}/{image_index[:-4]}_{params_string}_transformed.png"
     else:
         transformed_image_path = to_image_path
