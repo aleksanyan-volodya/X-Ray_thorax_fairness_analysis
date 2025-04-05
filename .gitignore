@@ -40,3 +40,7 @@ Thumbs.db
 
 # Ignore shell script backup files
 *.sh~
+
+# ignore all files in 1_DATASET/train and 1_DATASET/valid
+1_DATASET/train/*
+1_DATASET/valid/*

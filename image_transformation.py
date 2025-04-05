@@ -50,7 +50,16 @@ def add_blur(image: Image, factor: float) -> Image:
     """
     return image.filter(ImageFilter.GaussianBlur(factor))
 
-def transform_image(image: Image, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0) -> Image:
+def equalization(image: Image) -> Image:
+    """
+    Equalize the histogram of an image
+    :param image: PIL image
+    :return: PIL image
+    """
+    eq = ImageEnhance.Contrast(image).enhance(2)
+    return eq
+
+def transform_image(image: Image, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> Image:
     """
     Transform an image by applying rotation, brightness, saturation, noise and blur
     :param image: PIL image
@@ -58,19 +67,22 @@ def transform_image(image: Image, rotation: int = 0, brightness: float = 1.0, no
     :param brightness: float
     :param noise: float
     :param blur: float
+    :param equalize: bool
     :return: PIL image
     """
     image = rotate_image(image, rotation)
     image = change_brightness(image, brightness)
     image = add_noise(image, noise)
     image = add_blur(image, blur)
+    if equalize:
+        image = equalization(image)
     return image
 
 
 ############################################
 
 
-def create_transformed_image(image_path: str, transformed_image_path: str, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0) -> None:
+def create_transformed_image(image_path: str, transformed_image_path: str, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> None:
     """
     Add a transformed image to the dataset
     :param image_path: str
@@ -80,50 +92,62 @@ def create_transformed_image(image_path: str, transformed_image_path: str, rotat
     :param brightness: float
     :param noise: float
     :param blur: float
+    :param equalize: bool
     :return: None
     """
     image = Image.open(image_path)
-    transformed_image = transform_image(image, rotation, brightness, noise, blur)
+    transformed_image = transform_image(image, rotation, brightness, noise, blur, equalize)
     transformed_image.save(transformed_image_path)
 
-def add_transformed_image_to_csv(csv_path: str, image_index: str, transformed_image_index: str) -> None:
+# if to_csv_path is not precised, it will be the same as from_csv_path
+def add_transformed_image_to_csv(from_csv_path: str, image_index: str, transformed_image_index: str, to_csv_path: str = None) -> None:
     """
     Add a transformed image to the dataset
-    :param csv_path: str
+    :param from_csv_path: str
     :param image_index: str
     :param transformed_image_index: str
+    optional parameters
+    :param to_csv_path: str
+    :return: None
     """
     
-    df = pd.read_csv(csv_path)
-    image_info = df[df['Image Index'] == image_index].copy()
+    df_from = pd.read_csv(from_csv_path)
+    image_info = df_from[df_from['Image Index'] == image_index].copy()
     image_info['Image Index'] = transformed_image_index
 
     # add the new image to the end of the csv
-    df = pd.concat([df, image_info], ignore_index=True)
-    df.to_csv(csv_path, index=False)
+    df_to = pd.read_csv(to_csv_path) if to_csv_path else df_from
+    df_to = pd.concat([df_to, image_info], ignore_index=True) 
+    df_to.to_csv(to_csv_path, index=False)
 
-def add_new_image(image_path: str, csv_path: str, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0) -> None:
+def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = None, to_image_path: str = None, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> None:
     """
     Add a new image to the dataset
-    :param image_path: str
-    :param csv_path: str
+    :param from_image_path: str
+    :param from_csv_path: str
     oprional parameters
+    :param to_csv_path: str
+    :param to_image_path: str
     :param rotation: int
     :param brightness: float
     :param noise: float
     :param blur: float
+    :param equalize: bool
     :return: None
     """
-    params_string = f"r{rotation}_b{brightness}_n{noise}_bl{blur}"
+    if to_image_path is None:
+        params_string = f"r{rotation}_b{brightness}_n{noise}_bl{blur}_eq{int(equalize)}"
 
-    splited_list = image_path.split('/')
-    path, image_index = splited_list[:-1], splited_list[-1]
-    path = '/'.join(path)
-    
-    transformed_image_path = f"{path}/{image_index[:-4]}_{params_string}_transformed.png"
+        splited_list = from_image_path.split('/')
+        path, image_index = splited_list[:-1], splited_list[-1]
+        path = '/'.join(path)
+        
+        transformed_image_path = f"{path}/{image_index[:-4]}_{params_string}_transformed.png"
+    else:
+        transformed_image_path = to_image_path
 
-    create_transformed_image(image_path, transformed_image_path, rotation, brightness, noise, blur)
-    add_transformed_image_to_csv(csv_path, image_index, transformed_image_path)
+    create_transformed_image(from_image_path, transformed_image_path, rotation, brightness, noise, blur, equalize)
+    add_transformed_image_to_csv(from_csv_path, image_index, transformed_image_path, to_csv_path=to_csv_path)
 
 
 ###########################################
