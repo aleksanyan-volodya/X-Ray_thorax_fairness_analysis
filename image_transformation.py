@@ -70,10 +70,14 @@ def transform_image(image: Image, rotation: int = 0, brightness: float = 1.0, no
     :param equalize: bool
     :return: PIL image
     """
-    image = rotate_image(image, rotation)
-    image = change_brightness(image, brightness)
-    image = add_noise(image, noise)
-    image = add_blur(image, blur)
+    if rotation != 0:
+        image = rotate_image(image, rotation)
+    if brightness != 1.0:
+        image = change_brightness(image, brightness)
+    if noise != 0.0:
+        image = add_noise(image, noise)
+    if blur != 0.0:
+        image = add_blur(image, blur)
     if equalize:
         image = equalization(image)
     return image
