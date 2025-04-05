@@ -149,12 +149,15 @@ def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = N
     if to_image_path is None:
         params_string = f"r{rotation}_b{brightness}_n{noise}_bl{blur}_eq{int(equalize)}"
         path = '/'.join(path)
+        transformed_image_index = f"{image_index[:-4]}_{params_string}_transformed.png"
         transformed_image_path = f"{path}/{image_index[:-4]}_{params_string}_transformed.png"
     else:
+        transformed_image_index = to_image_path.split('/')[-1]
         transformed_image_path = to_image_path
+        print(f"transformed_image_path: {transformed_image_index}")
 
     create_transformed_image(from_image_path, transformed_image_path, rotation, brightness, noise, blur, equalize)
-    add_transformed_image_to_csv(from_csv_path, image_index, transformed_image_path, to_csv_path=to_csv_path)
+    add_transformed_image_to_csv(from_csv_path, image_index, transformed_image_index, to_csv_path=to_csv_path)
 
 
 ###########################################
