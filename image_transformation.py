@@ -193,3 +193,30 @@ def remove_transformed_data(csv_path: str) -> int:
     df.to_csv(csv_path, index=False)
     
     return len(df[df['Image Index'].str.contains('_transformed.png')])
+
+"""
+### try class
+### including all functions above
+class ImageTransformation:
+    def __init__(self, image_path: str, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False):
+        self.image_path = image_path
+        self.rotation = rotation
+        self.brightness = brightness
+        self.noise = noise
+        self.blur = blur
+        self.equalize = equalize
+        self.image = Image.open(image_path)
+    
+    def transform(self):
+        return transform_image(self.image, self.rotation, self.brightness, self.noise, self.blur, self.equalize)
+    
+    def save_transformed_image(self, transformed_image_path: str):
+        transformed_image = self.transform()
+        transformed_image.save(transformed_image_path)
+
+    def save_transformed_image_to_csv(self, csv_path: str, transformed_image_index: str):
+        transformed_image = self.transform()
+        transformed_image.save(transformed_image_index)
+        add_transformed_image_to_csv(csv_path, self.image_path, transformed_image_index)
+
+"""
