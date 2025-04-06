@@ -154,7 +154,6 @@ def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = N
     else:
         transformed_image_index = to_image_path.split('/')[-1]
         transformed_image_path = to_image_path
-        print(f"transformed_image_path: {transformed_image_index}")
 
     create_transformed_image(from_image_path, transformed_image_path, rotation, brightness, noise, blur, equalize)
     add_transformed_image_to_csv(from_csv_path, image_index, transformed_image_index, to_csv_path=to_csv_path)
@@ -209,17 +208,15 @@ class ImageTransformation:
         self.blur = blur
         self.equalize = equalize
         self.image = Image.open(image_path)
-    
-    def transform(self):
-        return transform_image(self.image, self.rotation, self.brightness, self.noise, self.blur, self.equalize)
-    
-    def save_transformed_image(self, transformed_image_path: str):
-        transformed_image = self.transform()
-        transformed_image.save(transformed_image_path)
-
-    def save_transformed_image_to_csv(self, csv_path: str, transformed_image_index: str):
-        transformed_image = self.transform()
-        transformed_image.save(transformed_image_index)
-        add_transformed_image_to_csv(csv_path, self.image_path, transformed_image_index)
-
+     
+    #    def create_transformed_image(image_path: str, transformed_image_path: str, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> None
+#
+ #       def add_transformed_image_to_csv(from_csv_path: str, image_index: str, transformed_image_index: str, to_csv_path: str = None) -> None
+#
+ #       def add_new_image(from_image_path: str, from_csv_path: str, to_csv_path: str = None, to_image_path: str = None, rotation: int = 0, brightness: float = 1.0, noise: float = 0.0, blur: float = 0.0, equalize: bool = False) -> None
+#
+ #       def remove_image(image_path: str) -> None
+#
+ #       def remove_transformed_data(csv_path: str) -> int
+  #  
 """
