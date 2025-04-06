@@ -42,8 +42,10 @@ Thumbs.db
 *.sh~
 
 # ignore all files in 1_DATASET/train and 1_DATASET/valid
-1_DATASET/train/*
-1_DATASET/valid/*
+1_DATASET/train/malade/*
+1_DATASET/train/sain/*
+1_DATASET/valid/sain/*
+1_DATASET/valid/malade/*
 
 # ignore tests files containing .png
 tests/*/*.png
