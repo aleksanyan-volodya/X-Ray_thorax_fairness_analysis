@@ -27,7 +27,7 @@ from time import time
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
-
+import os
 
 def parse_opt():
     parser = argparse.ArgumentParser()
@@ -219,24 +219,25 @@ def make_model(pth_path=None, nb_classes=40, V1=False):
 def get_weights(imgs, img_names, img_weights, weight=None):
     """
     Returns the list of weights sorted in the same order as the images in the dataloader
-    args:
-        imgs: dataloader ordered list of tuples (image path, truth)
-        img_names: dataframe ordered list of images name
-        img_weights: dataframe ordered list of images weights
     """
     sorted_weights = []
-    if not (weight is None):
-        for img_path, target in imgs:
+    if weight is not None:
+        for _, target in imgs:
             sorted_weights.append(weight[target])
     else:
-        for img_path, _ in imgs:
-            for idx, val in enumerate(img_names):
-                if val == img_path.split("/")[-1]:
-                    sorted_weights.append(img_weights[idx])
-                    break
+        # Nettoyer les noms dans le CSV juste au cas où
+        img_names = img_names.str.strip()
 
-    sorted_weights = torch.Tensor(sorted_weights)
-    sorted_weights = sorted_weights.double()
+        for img_path, _ in imgs:
+            filename = os.path.basename(img_path).strip()  # extrait "image001.png" proprement
+            match = img_names == filename
+            if match.any():
+                idx = match.idxmax()  # récupère l’index du premier True
+                sorted_weights.append(img_weights[idx])
+            else:
+                print(f"⚠️ Image {filename} non trouvée dans le CSV !")
+
+    sorted_weights = torch.tensor(sorted_weights, dtype=torch.float64)
     return sorted_weights
 
 
