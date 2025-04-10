@@ -19,7 +19,7 @@ from torchvision.datasets import ImageFolder
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning import LightningModule, Trainer
-from sklearn.metrics import balanced_accuracy_score, accuracy_score
+from sklearn.metrics import balanced_accuracy_score, accuracy_score, confusion_matrix
 
 import io
 import pandas as pd
@@ -31,104 +31,38 @@ import os
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--logdir",
-        type=str,
-        required=True,
-        help="The folder in which the log will be writen",
-    )
-    parser.add_argument(
-        "--datadir",
-        type=str,
-        required=True,
-        help="The folder has to follow the torchvision ImageFolder structure (one subfolder per partition : train, valid, test and for each one subfolder per class)",
-    )
-    parser.add_argument(
-        "--csv",
-        type=str,
-        required=True,
-        help="The path to the metadata csv file",
-    )
-    parser.add_argument(
-        "--weights_col",
-        type=str,
-        default="WEIGHTS",
-        required=False,
-        help="The name of the column of the csv file, that contains the weights per instance",
-    )
-    parser.add_argument(
-        "--max_epochs",
-        type=int,
-        default="25",
-        required=False,
-        help="Max number of epochs",
-    )
-    parser.add_argument(
-        "--csv_out",
-        type=str,
-        required=True,
-        help="The path to the preds csv file",
-    )
-    parser.add_argument(
-        "--ckpt_path",
-        type=str,
-        required=False,
-        help="The path to ckpt model. Used only if the training is not activated",
-    )
-    parser.add_argument(
-        "--preds_col",
-        type=str,
-        default="preds",
-        required=False,
-        help="The name of the column of the csv output file, that contains the predictions per instance",
-    )
-    parser.add_argument(
-        "--train",
-        type=str,
-        default="True",
-        required=False,
-        help="(default True): If True the training is perfomed",
-    )
-    parser.add_argument(
-        "--pred",
-        type=str,
-        default="True",
-        required=False,
-        help="(default True): If True the prediction is perfomed. If train is also set to True the argument ckpt_path is ignored",
-    )
-    opt = parser.parse_args()
-    return opt
+    parser.add_argument("--logdir", type=str, required=True)
+    parser.add_argument("--datadir", type=str, required=True)
+    parser.add_argument("--csv", type=str, required=True)
+    parser.add_argument("--weights_col", type=str, default="WEIGHTS")
+    parser.add_argument("--max_epochs", type=int, default=25)
+    parser.add_argument("--csv_out", type=str, required=True)
+    parser.add_argument("--ckpt_path", type=str, required=False)
+    parser.add_argument("--preds_col", type=str, default="preds")
+    parser.add_argument("--train", type=str, default="True")
+    parser.add_argument("--pred", type=str, default="True")
+    return parser.parse_args()
 
+transforms_valid = Compose([
+    Resize((256, 256)),
+    CenterCrop(224),
+    ToImage(),
+    ToDtype(torch.float32, scale=True),
+    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-transforms_valid = Compose(
-    [
-        Resize((256, 256)),
-        CenterCrop(224),
-        ToImage(),
-        ToDtype(
-            torch.float32,
-            scale=True,
-        ),
-        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ]
-)
-
-transforms_train = Compose(
-    [
-        Resize((256, 256)),
-        RandomCrop(224),
-        RandomHorizontalFlip(),
-        ToImage(),
-        ToDtype(torch.float32, scale=True),
-        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ]
-)
-
+transforms_train = Compose([
+    Resize((256, 256)),
+    RandomCrop(224),
+    RandomHorizontalFlip(),
+    ToImage(),
+    ToDtype(torch.float32, scale=True),
+    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
 def accuracy(outputs, labels):
     outputs_idx = outputs.max(1)[1].type_as(labels)
     return balanced_accuracy_score(labels.detach().cpu(), outputs_idx.detach().cpu())
-
 
 class ChestXRayClassifier(LightningModule):
     def __init__(self, pth_path=None, adamax=False, cosine=True, nb_classes=40) -> None:
@@ -150,219 +84,152 @@ class ChestXRayClassifier(LightningModule):
         self.logger.experiment.add_image(name, im, batch_idx)
         self.bcm.reset()
 
-    def forward(self, x):
-        imgs, _ = x
+    def forward(self, imgs):
         return self.model(imgs)
 
     def training_step(self, batch, batch_idx):
-        _, labels = batch
-        logits = self.forward(batch)
+        imgs, labels = batch
+        logits = self.forward(imgs)
         loss = cross_entropy(logits, labels)
         self.log("train_loss", loss)
         acc = accuracy(logits, labels)
         self.log("train_acc", acc)
-        # Plot confusion Matrice
-        self.plot_cm(
-            name="train_confusion_matrix",
-            logits=logits,
-            labels=labels,
-            batch_idx=batch_idx,
-        )
+        self.plot_cm(logits, labels, "train_confusion_matrix", batch_idx)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        _, labels = batch
-        logits = self.forward(batch)
+        imgs, labels = batch
+        logits = self.forward(imgs)
         loss = cross_entropy(logits, labels)
         self.log("val_loss", loss)
         acc = accuracy(logits, labels)
         self.log("val_acc", acc)
-        # Plot confusion Matrice
-        self.plot_cm(
-            name="valid_confusion_matrix",
-            logits=logits,
-            labels=labels,
-            batch_idx=batch_idx,
-        )
+        self.plot_cm(logits, labels, "valid_confusion_matrix", batch_idx)
         return loss
 
     def configure_optimizers(self) -> Any:
-        if self.adamax:
-            optimizer = torch.optim.Adamax(
-                self.parameters(), lr=1e-3, weight_decay=0.001
-            )
-        else:
-            optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        if self.cosine:
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, self.trainer.max_epochs, 1e-7, -1, True
-            )
-        else:
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(
-                optimizer, milestones=[4, 9, 15], gamma=0.2
-            )
-        return ([optimizer], [scheduler])
-
+        optimizer = torch.optim.Adamax(self.parameters(), lr=1e-3, weight_decay=0.001) if self.adamax else torch.optim.Adam(self.parameters(), lr=1e-3)
+        scheduler = (
+            torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, self.trainer.max_epochs, 1e-7, -1, True)
+            if self.cosine else
+            torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[4, 9, 15], gamma=0.2)
+        )
+        return [optimizer], [scheduler]
 
 def make_model(pth_path=None, nb_classes=40, V1=False):
-    if V1:
-        model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-    else:
-        model = resnet18(weights=ResNet18_Weights.DEFAULT)
+    model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1 if V1 else ResNet18_Weights.DEFAULT)
     num_ftrs = model.fc.in_features
     model.fc = torch.nn.Linear(num_ftrs, nb_classes)
     if pth_path is not None:
         model.load_state_dict(torch.load(pth_path, map_location="cpu"))
     return model
 
-
 def get_weights(imgs, img_names, img_weights, weight=None):
-    """
-    Returns the list of weights sorted in the same order as the images in the dataloader
-    """
     sorted_weights = []
     if weight is not None:
         for _, target in imgs:
             sorted_weights.append(weight[target])
     else:
-        # Nettoyer les noms dans le CSV juste au cas où
         img_names = img_names.str.strip()
-
         for img_path, _ in imgs:
-            filename = os.path.basename(img_path).strip()  # extrait "image001.png" proprement
+            filename = os.path.basename(img_path).strip()
             match = img_names == filename
             if match.any():
-                idx = match.idxmax()  # récupère l’index du premier True
+                idx = match.idxmax()
                 sorted_weights.append(img_weights[idx])
             else:
                 print(f"⚠️ Image {filename} non trouvée dans le CSV !")
-
-    sorted_weights = torch.tensor(sorted_weights, dtype=torch.float64)
-    return sorted_weights
-
-
-def get_class_weights(imgs):
-    target = [t for (_, t) in imgs]
-    train_class_sample_count = np.array(
-        [len(np.where(target == t)[0]) for t in np.unique(target)]
-    )
-    return 1.0 / train_class_sample_count
-
+    return torch.tensor(sorted_weights, dtype=torch.float64)
 
 def preds_todf(df, dataset, label_decoder, model, preds_col):
     for idx in range(len(dataset.imgs)):
-        img_name = dataset.imgs[idx][0].split("/")[-1]
+        img_name = os.path.basename(dataset.imgs[idx][0]).strip()
         img, label = dataset.__getitem__(idx)
-        pred = model((img.unsqueeze(0), torch.Tensor([label])))
-        pred = pred.max(1)[1].detach().cpu().item()
+        with torch.no_grad():
+            pred_logits = model(img.unsqueeze(0))
+            pred = pred_logits.argmax(1).item()
         df.loc[df["Image Index"] == img_name, preds_col] = label_decoder[pred]
         df.loc[df["Image Index"] == img_name, "labels"] = label_decoder[label]
     return df
 
-
-def pred_classifier(
-    datadir: str, ckpt_path: str, csv_in: str, csv_out: str, preds_col: str = "preds"
-):
-    """Make prediction with the model on the data
-    Args:
-        - datadir, str : The folder has to follow the torchvision ImageFolder structure
-                         (one subfolder per partition : train, valid, test and for each one subfolder per class)
-        - ckpt_path, str : The path to ckpt model
-        - csv_in, str: The path to the metadata csv input file
-        - csv_out, str: The path to the metadata csv output file, with "label" and preds_col added
-        - preds_col, str : The name of the column of the csv output file, that contains the predictions per instance
-    """
-    train_datadir = f"{datadir}/train/"
-    valid_datadir = f"{datadir}/valid/"
-    train_dataset = ImageFolder(train_datadir, transform=transforms_valid)
+def pred_classifier(datadir: str, ckpt_path: str, csv_in: str, csv_out: str, preds_col: str = "preds", sensitive_col: str = "Patient Gender"):
+    train_dataset = ImageFolder(f"{datadir}/train/", transform=transforms_valid)
+    val_dataset = ImageFolder(f"{datadir}/valid/", transform=transforms_valid)
+    
     label_encoder = train_dataset.class_to_idx
-    label_decoder = {}
-    for k, v in label_encoder.items():
-        label_decoder[v] = k
+    label_decoder = {v: k for k, v in label_encoder.items()}
+
     model = ChestXRayClassifier(adamax=True, cosine=True, nb_classes=len(label_encoder))
     model.load_state_dict(torch.load(ckpt_path, map_location="cpu")["state_dict"])
     model.eval()
-    val_dataset = ImageFolder(valid_datadir, transform=transforms_valid)
+
     df = pd.read_csv(csv_in)
+    df["Image Index"] = df["Image Index"].apply(lambda x: os.path.basename(x))
     df[preds_col] = None
+
     print("Start prediction on train dataset")
-    t = time()
     df = preds_todf(df, train_dataset, label_decoder, model, preds_col)
-    print(f"Predictions done in {time()-t}")
+
     print("Start prediction on validation dataset")
     df = preds_todf(df, val_dataset, label_decoder, model, preds_col)
-    print(f"Predictions done in {time()-t}")
+
     df.to_csv(csv_out, index=False)
-    print(balanced_accuracy_score(df.labels, df[preds_col]))
-    print(accuracy_score(df.labels, df[preds_col]))
 
+    if "labels" in df.columns and df[preds_col].notna().all():
+        print("\n📊 Global Metrics:")
+        print("- Balanced Accuracy:", round(balanced_accuracy_score(df.labels, df[preds_col]), 4))
+        print("- Accuracy:", round(accuracy_score(df.labels, df[preds_col]), 4))
 
-def train_classifier(
-    logdir: str,
-    datadir: str,
-    csv: str,
-    weights_col: str = "WEIGHTS",
-    max_epochs: int = 25,
-):
-    """Train an image classifier using Resnet18 and outputs predictions for all partitions (train, valid)
-    Args:
-        - logdir, str : The folder in which the log will be writen
-        - datadir, str : The folder has to follow the torchvision ImageFolder structure
-                         (one subfolder per partition : train, valid, test and for each one subfolder per class)
-        - csv, str: The path to the metadata csv file
-        - weights_col, str : The name of the column of the csv file, that contains the weights per instance
-        - max_epochs,, int : Max number of epochs
-    Return:
-        A tuple (ckpt_path, ckpt_score), path of the checkpoint and its score
+        if sensitive_col in df.columns:
+            print(f"\n📊 Fairness Metrics (by {sensitive_col}):")
 
-    """
+            for group in df[sensitive_col].dropna().unique():
+                group_df = df[df[sensitive_col] == group]
+                acc = accuracy_score(group_df["labels"], group_df[preds_col])
+                bal_acc = balanced_accuracy_score(group_df["labels"], group_df[preds_col])
+                cm = confusion_matrix(group_df["labels"], group_df[preds_col], labels=list(label_encoder.keys()))
+                tp = cm[1][1] if cm.shape == (2, 2) else 0
+                fn = cm[1][0] if cm.shape == (2, 2) else 0
+                tpr = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+                print(f"  ▶ Group '{group}':")
+                print(f"     - Accuracy: {round(acc, 4)}")
+                print(f"     - Balanced Accuracy: {round(bal_acc, 4)}")
+                print(f"     - TPR (Sensitivity): {round(tpr, 4)}")
+
+            # Disparity between groups
+            groups = df[sensitive_col].dropna().unique()
+            if len(groups) == 2:
+                g1, g2 = groups
+                acc1 = accuracy_score(df[df[sensitive_col] == g1]["labels"], df[df[sensitive_col] == g1][preds_col])
+                acc2 = accuracy_score(df[df[sensitive_col] == g2]["labels"], df[df[sensitive_col] == g2][preds_col])
+                print(f"\n⚖️  Accuracy Disparity ({g1} vs {g2}): {round(abs(acc1 - acc2), 4)}")
+    else:
+        print("⚠️ Impossible de calculer les métriques (labels ou prédictions manquants)")
+
+def train_classifier(logdir: str, datadir: str, csv: str, weights_col: str = "WEIGHTS", max_epochs: int = 25):
     t = time()
     train_datadir = f"{datadir}/train/"
     valid_datadir = f"{datadir}/valid/"
     df = pd.read_csv(csv)
     logger = TensorBoardLogger(f"{logdir}/", name="classifier")
-    cb_ckpt_best = ModelCheckpoint(
-        dirpath=f"{logdir}/",
-        monitor="val_loss",
-        filename="best-val-loss",
-        mode="min",
-        save_top_k=1,
-        save_last=False,
-    )
+    cb_ckpt_best = ModelCheckpoint(dirpath=f"{logdir}/", monitor="val_loss", filename="best-val-loss", mode="min", save_top_k=1, save_last=False)
     cb_es = EarlyStopping(monitor="val_loss", patience=3)
-    callbacks = [cb_ckpt_best, cb_es]
-    trainer = Trainer(logger=logger, callbacks=callbacks, max_epochs=max_epochs)
+    trainer = Trainer(logger=logger, callbacks=[cb_ckpt_best, cb_es], max_epochs=max_epochs)
     train_dataset = ImageFolder(train_datadir, transform=transforms_train)
-    label_encoder = train_dataset.class_to_idx
     val_dataset = ImageFolder(valid_datadir, transform=transforms_valid)
     train_weights = get_weights(train_dataset.imgs, df["Image Index"], df[weights_col])
     valid_weights = get_weights(val_dataset.imgs, df["Image Index"], df[weights_col])
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=32,
-        sampler=WeightedRandomSampler(train_weights, len(train_weights)),
-    )
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=32,
-        sampler=WeightedRandomSampler(valid_weights, len(valid_weights)),
-    )
-    model = ChestXRayClassifier(adamax=True, cosine=True, nb_classes=len(label_encoder))
-    print(f"Start training")
-    trainer.fit(
-        model=model,
-        train_dataloaders=train_dataloader,
-        val_dataloaders=val_dataloader,
-    )
+    train_dataloader = DataLoader(train_dataset, batch_size=32, sampler=WeightedRandomSampler(train_weights, len(train_weights)))
+    val_dataloader = DataLoader(val_dataset, batch_size=32, sampler=WeightedRandomSampler(valid_weights, len(valid_weights)))
+    model = ChestXRayClassifier(adamax=True, cosine=True, nb_classes=len(train_dataset.class_to_idx))
+    print("Start training")
+    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
     print(f"End of training {time()-t}")
-    t = time()
     return cb_ckpt_best.best_model_path, cb_ckpt_best.best_model_score.item()
 
-
 if __name__ == "__main__":
-    t = time()
     args = parse_opt()
-    print(args)
     if args.train == "True":
         ckpt_path, ckpt_score = train_classifier(
             logdir=args.logdir,
