@@ -43,7 +43,6 @@ Thumbs.db
 
 # ignore all files in 1_DATASET/train and 1_DATASET/valid
 1_clem/*/*/*.png
-clem/*/*/*.png
 
 # ignore tests files containing .png
 tests/*/*.png
